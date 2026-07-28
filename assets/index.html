@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UNO Q Lorenz ROI experiment</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main>
+      <h1>Facial-region protection experiment</h1>
+      <p class="boundary">Lorenz is an experimental preprocessing layer; only the AEAD modes request authenticated ROI packets.</p>
+      <aside id="mode-warning" class="mode-warning" role="alert" hidden>
+        <strong>Insecure ablation active.</strong>
+        M0--M2 do not produce an authenticated, recoverable ROI payload. Use them only in the registered laboratory comparison.
+      </aside>
+      <section class="camera-panel" aria-labelledby="camera-heading">
+        <div>
+          <h2 id="camera-heading">Smartphone camera</h2>
+          <p id="camera-status">Waiting for camera pairing information</p>
+          <p class="preview-note">
+            Pair with Arduino IoT Remote. The six-digit code protects the temporary
+            phone-to-board link; it is not the ROI master key.
+          </p>
+          <a id="camera-link" class="camera-link" href="#" hidden>Open Arduino IoT Remote on this phone</a>
+          <p id="camera-otp" class="camera-otp" hidden></p>
+        </div>
+        <div id="camera-qr" class="camera-qr" aria-label="Camera pairing QR code"></div>
+      </section>
+      <section class="panel">
+        <div>
+          <h2>Operational preview</h2>
+          <img id="preview" alt="Lossy operational preview; not the recoverable ROI packet payload">
+          <p class="preview-note">
+            This browser image is a lossy JPEG visualization. It is not the stored ROI packet,
+            is not an exact-recovery artifact, and must not be used as evidence that a packet was authenticated or persisted.
+          </p>
+        </div>
+        <dl>
+          <dt>Preview status</dt><dd id="status">Waiting for operational preview</dd>
+          <dt>Callback-local frame</dt><dd id="frame">&mdash;</dd>
+          <dt>Run</dt><dd id="run">&mdash;</dd>
+          <dt>Condition</dt><dd id="condition">&mdash;</dd>
+          <dt>Mode contract</dt><dd id="auth-mode">&mdash;</dd>
+          <dt>Box margin</dt><dd id="margin">&mdash;</dd>
+          <dt>Facial ROIs</dt><dd id="rois">&mdash;</dd>
+          <dt>Processing time</dt><dd id="latency">&mdash;</dd>
+          <dt>ROI payload</dt><dd id="payload">Not sent to this browser</dd>
+        </dl>
+      </section>
+      <section class="limitations" aria-label="Experimental boundaries">
+        <h2>Experimental boundaries</h2>
+        <p><strong>Box--frame alignment:</strong> the detector classification and callback JPEG do not expose a shared source-frame identifier. The displayed number is local to the callback; it does not prove temporal alignment, detector recall, or absence of dropped source frames.</p>
+        <p><strong>Network and secrets:</strong> run Network Mode only on an isolated, trusted laboratory network. Never place the master key in this page, a URL, <code>app.yaml</code>, logs, CSV files, or the run manifest; inject it into the process environment and rotate it for every run.</p>
+      </section>
+      <p>In M3--M4, the operational intent is to avoid showing plaintext inside accepted boxes; verify the preview and packet store independently. M0--M2 are insecure ablations and can expose source information, so the interface marks them with a red warning.</p>
+    </main>
+    <script src="libs/socket.io.min.js"></script>
+    <script src="libs/arduino.js"></script>
+    <script src="libs/qrcode.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

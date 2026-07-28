@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unoq-lorenz-roi"
+version = "0.1.0"
+description = "Reproducible Lorenz-assisted AEAD prototype for facial ROIs on Arduino UNO Q"
+requires-python = ">=3.11"
+dependencies = [
+  "cryptography>=44,<47",
+  "numpy>=2,<3",
+  "opencv-python-headless>=4.10,<5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "matplotlib>=3.9,<4"]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]
+testpaths = ["tests"]

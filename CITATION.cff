@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the companion paper and this repository."
+title: "UNO Q Lorenz-assisted authenticated facial-region protection prototype"
+type: software
+version: 0.1.0
+date-released: 2026-07-28
+authors:
+  - family-names: Moreno-Lopez
+    given-names: M. Fernanda
+  - family-names: Tlelo-Cuautle
+    given-names: Esteban
+repository-code: "https://github.com/Xerkkun/unoq-lorenz-face-protection"
+url: "https://github.com/Xerkkun/unoq-lorenz-face-protection"
+keywords:
+  - Arduino UNO Q
+  - authenticated encryption
+  - edge vision
+  - Lorenz system
+  - reproducible engineering education

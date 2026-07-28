@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local experiment material: never publish
+.env
+*.pem
+*.key
+private/
+secrets/
+keys/
+participants/
+faces/
+rostros/
+raw/
+data/board/raw/
+data/bitstreams/
+
+# Generated artifacts
+release/
+dist/
+build/
+*.egg-info/
+*.zip
+*.zip.sha256

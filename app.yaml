@@ -1,0 +1,12 @@
+name: Lorenz-assisted authenticated facial ROI protection
+icon: 🔐
+description: Detect facial regions from a paired smartphone camera and evaluate a Lorenz preprocessing layer inside ChaCha20-Poly1305 protection.
+
+ports:
+  - 8080
+bricks:
+  - arduino:video_object_detection:
+      model: face-detection
+      devices:
+        - remote_camera_0
+  - arduino:web_ui

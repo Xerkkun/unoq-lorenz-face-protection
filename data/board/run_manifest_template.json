@@ -1,0 +1,73 @@
+{
+  "status": "template_not_a_completed_run",
+  "run_id": null,
+  "date_utc": null,
+  "condition": null,
+  "duration_s": 60,
+  "input_resolution": null,
+  "scene": null,
+  "metrics_schema_version": 2,
+  "board": {
+    "model": "Arduino UNO Q",
+    "board_revision": null,
+    "ram_variant_gb": null,
+    "serial_redacted": true
+  },
+  "camera": {
+    "model": null,
+    "powered_usb_c_hub": null,
+    "exposure_mode": null,
+    "distance_m": null
+  },
+  "software": {
+    "app_lab_version": null,
+    "app_bricks_revision": null,
+    "face_model_identifier": "face-detection",
+    "face_model_hash": null,
+    "source_archive_sha256": null,
+    "python_version": null,
+    "numpy_version": null,
+    "protocol_version": "unoq-roi-packet-v2",
+    "transform_version": "lorenz-rk4-sha256-pcg64-v2",
+    "transform_profile_sha256": null
+  },
+  "detector": {
+    "confidence": 0.5,
+    "empty_detection_callbacks_available": false,
+    "shared_source_frame_id_available": false,
+    "bbox_margin_fraction_requested": null,
+    "bbox_margin_fraction_applied": null,
+    "bbox_margin_clipping_policy": "clip_to_image_bounds",
+    "box_frame_alignment_method": null,
+    "box_frame_alignment_sample_size": null,
+    "box_frame_alignment_result": null
+  },
+  "network_policy": {
+    "isolated_trusted_lab_network": null,
+    "public_port_forwarding_disabled": null,
+    "public_tunnel_disabled": null,
+    "master_key_absent_from_ui_url_logs_and_manifest": true
+  },
+  "key_policy": {
+    "fresh_32_byte_master_key_for_run": true,
+    "run_key_origin": null,
+    "key_fingerprint_sha256_recorded_in_private_run_contract": true,
+    "fingerprint_not_previously_used_in_packet_root": null,
+    "key_not_logged": true,
+    "key_not_in_repository": true
+  },
+  "ethics": {
+    "synthetic_only": null,
+    "adult_consent_recorded": null,
+    "raw_video_retained": false,
+    "institutional_review_reference": null
+  },
+  "rate_contract": {
+    "monotonic_timestamp_clock": "time.monotonic",
+    "preview_is_not_packet_payload": true,
+    "protected_output_requires_packet_count_above_zero": true,
+    "packet_bundle_persisted_before_preview_success": true,
+    "source_drop_count_unavailable_value": -1
+  },
+  "notes": null
+}
