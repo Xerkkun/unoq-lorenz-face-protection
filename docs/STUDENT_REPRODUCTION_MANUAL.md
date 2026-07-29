@@ -328,6 +328,96 @@ key custody from packet storage, and set a deletion date.
 During disconnection, use a predefined bounded buffer, back-pressure, or
 explicit dropping. An unlimited queue can exhaust eMMC.
 
+#### Executable Windows procedure
+
+The App Lab Linux container cannot write directly to a `C:\...` path. This
+repository includes `scripts/laptop_packet_receiver.py`: the board first keeps
+the atomic JSON locally and a background worker delivers the same bytes to the
+laptop. Only encrypted/authenticated M3/M4 packets are transported; the source
+face image and run key are not sent.
+
+From the repository root in PowerShell:
+
+```powershell
+$privateDir = Join-Path $env:USERPROFILE "Documents\UNOQ-Private"
+New-Item -ItemType Directory -Force $privateDir
+$tokenBytes = New-Object byte[] 32
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($tokenBytes)
+$rng.Dispose()
+[IO.File]::WriteAllText(
+  (Join-Path $privateDir "receiver.token"),
+  [Convert]::ToBase64String($tokenBytes),
+  [Text.Encoding]::ASCII
+)
+python scripts/laptop_packet_receiver.py `
+  --bind 0.0.0.0 `
+  --port 8765 `
+  --output-dir "$env:USERPROFILE\Documents\UNOQ-Captures" `
+  --token-file "$env:USERPROFILE\Documents\UNOQ-Private\receiver.token"
+```
+
+Allow the process only on the firewall's **Private network** profile. In a
+second window, check `Invoke-RestMethod
+http://127.0.0.1:8765/health`. Find the laptop IPv4 address with:
+
+```powershell
+Get-NetIPConfiguration |
+  Where-Object IPv4DefaultGateway |
+  Select-Object InterfaceAlias,IPv4Address
+```
+
+Copy the same token, without adding it to the project, to
+`/app/data/private/laptop_receiver.token`. In a private App Lab terminal:
+
+```sh
+install -d -m 700 /app/data/private
+umask 077
+read -r -s UNOQ_RECEIVER_TOKEN
+printf '%s' "$UNOQ_RECEIVER_TOKEN" > /app/data/private/laptop_receiver.token
+unset UNOQ_RECEIVER_TOKEN
+```
+
+Add the receiver to the run contract, replacing the example IP:
+
+```json
+{
+  "run_id": "20260728_student01",
+  "scene": "stationary",
+  "condition": "M4_lorenz_aead",
+  "bbox_margin_fraction": 0.10,
+  "inline_integrity_audit": false,
+  "publication_frame_enabled": false,
+  "laptop_receiver_url": "http://192.168.1.50:8765/v1/bundles",
+  "laptop_receiver_token_file": "/app/data/private/laptop_receiver.token",
+  "laptop_queue_capacity": 32
+}
+```
+
+Start the laptop receiver, then the App Lab application, and finally pair the
+phone. Files arrive under
+`Documents\UNOQ-Captures\<run_id>\frame_##########.json`. The receiver verifies
+HMAC-SHA-256, timestamp window, SHA-256, schema, identifiers, and packet count,
+then atomically publishes the file. An identical retry is idempotent; different
+bytes for the same frame are rejected.
+
+Board-local evidence remains under:
+
+| Evidence | Default path |
+|---|---|
+| recoverable packets | `/app/data/packets/<run_id>/` |
+| run contract | `/app/data/packets/<run_id>/run_contract.json` |
+| physical metrics | `/app/data/board/raw/<run_id>_<condition>.csv` |
+| authorized paper preview | `/app/data/board/publication/` |
+| private key and configuration | `/app/data/private/` |
+
+The network queue is bounded and does not block the detector callback. If it
+fills or exhausts its retries, `laptop_delivery` reports the event in the WebUI
+and the local copy remains authoritative. Do not delete it until the received
+inventory is verified. HTTP with HMAC authenticates but does not hide metadata
+or traffic patterns; use only an isolated private LAN, or HTTPS/VPN on an
+untrusted network.
+
 ### C. Remote service or cloud
 
 ```text

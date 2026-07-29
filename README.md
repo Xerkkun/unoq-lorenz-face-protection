@@ -158,6 +158,100 @@ In M3/M4, a canonical JSON frame bundle is written atomically under
 lossy JPEG is never the recovery artifact. A store/logging failure triggers the
 WebUI `pipeline_error` path and removes the stale preview.
 
+### Saving authenticated packets on a Windows laptop
+
+The application cannot write directly to a Windows path from the App Lab Linux
+container. Use the included authenticated receiver instead. The board first
+writes each bundle locally and then sends the same bytes from a bounded
+background queue. A network failure therefore does not make an unprotected
+image the fallback and does not block the detector callback.
+
+1. In PowerShell, from this repository, create a private shared token outside
+   version control:
+
+   ```powershell
+   $privateDir = Join-Path $env:USERPROFILE "Documents\UNOQ-Private"
+   New-Item -ItemType Directory -Force $privateDir
+   $tokenBytes = New-Object byte[] 32
+   $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+   $rng.GetBytes($tokenBytes)
+   $rng.Dispose()
+   [IO.File]::WriteAllText(
+     (Join-Path $privateDir "receiver.token"),
+     [Convert]::ToBase64String($tokenBytes),
+     [Text.Encoding]::ASCII
+   )
+   ```
+
+2. Start the laptop receiver before starting the App Lab application:
+
+   ```powershell
+   python scripts/laptop_packet_receiver.py `
+     --bind 0.0.0.0 `
+     --port 8765 `
+     --output-dir "$env:USERPROFILE\Documents\UNOQ-Captures" `
+     --token-file "$env:USERPROFILE\Documents\UNOQ-Private\receiver.token"
+   ```
+
+   If Windows Firewall prompts, allow Python only on **Private networks**.
+   Verify the local process from another PowerShell window:
+
+   ```powershell
+   Invoke-RestMethod http://127.0.0.1:8765/health
+   ```
+
+3. Find the laptop IPv4 address on the same LAN:
+
+   ```powershell
+   Get-NetIPConfiguration |
+     Where-Object IPv4DefaultGateway |
+     Select-Object InterfaceAlias,IPv4Address
+   ```
+
+4. Copy the exact token contents into
+   `/app/data/private/laptop_receiver.token` on the UNO Q. Use the App Lab
+   private-data terminal or file-transfer mechanism; do not add the token to
+   the project. For an interactive Linux terminal:
+
+   ```sh
+   install -d -m 700 /app/data/private
+   umask 077
+   read -r -s UNOQ_RECEIVER_TOKEN
+   printf '%s' "$UNOQ_RECEIVER_TOKEN" > /app/data/private/laptop_receiver.token
+   unset UNOQ_RECEIVER_TOKEN
+   ```
+
+5. Extend `/app/data/private/run_config.json`, replacing the example IP with
+   the laptop address:
+
+   ```json
+   {
+     "run_id": "20260728_student01",
+     "scene": "stationary",
+     "condition": "M4_lorenz_aead",
+     "bbox_margin_fraction": 0.10,
+     "inline_integrity_audit": false,
+     "publication_frame_enabled": false,
+     "laptop_receiver_url": "http://192.168.1.50:8765/v1/bundles",
+     "laptop_receiver_token_file": "/app/data/private/laptop_receiver.token",
+     "laptop_queue_capacity": 32
+   }
+   ```
+
+Start the receiver, then the App Lab application, and finally pair the phone.
+Laptop files appear under
+`Documents\UNOQ-Captures\<run_id>\frame_##########.json`. They contain
+authenticated ciphertext and metadata, not a raw face JPEG. The run key stays
+separate on the board under `/app/data/private`; copy it only through an
+authorized key-custody procedure if exact recovery is later required.
+
+The HTTP laboratory profile authenticates body, timestamp, and SHA-256 digest
+with HMAC-SHA-256 without transmitting the token. It does not conceal packet
+metadata or traffic patterns. Keep it on the isolated private LAN; use HTTPS or
+a VPN before crossing an untrusted network. Identical retries are idempotent,
+a conflicting frame is rejected, and a full/failed delivery queue leaves the
+atomic board copy under `/app/data/packets/<run_id>/`.
+
 ## Real-time data destinations
 
 The default sink is local atomic storage on the UNO Q. A deployment must choose

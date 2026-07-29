@@ -25,6 +25,15 @@ class StoredFrameBundle:
     serialized_bytes: int
     sha256: str
     packet_count: int
+    run_id: str
+    frame_id: int
+
+
+@dataclass(frozen=True)
+class FrameBundleInfo:
+    run_id: str
+    frame_id: int
+    packet_count: int
 
 
 def _canonical_json_bytes(payload: object) -> bytes:
@@ -178,25 +187,60 @@ class PacketStore:
             serialized_bytes=len(serialized),
             sha256=hashlib.sha256(serialized).hexdigest(),
             packet_count=len(packet_tuple),
+            run_id=self.run_id,
+            frame_id=frame_id,
         )
+
+
+def parse_frame_bundle_bytes(
+    serialized: bytes,
+) -> tuple[FrameBundleInfo, tuple[ProtectedPacket, ...]]:
+    try:
+        payload = json.loads(serialized.decode("ascii"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid packet-bundle JSON") from error
+    if not isinstance(payload, dict):
+        raise ValueError("packet bundle must contain one JSON object")
+    if payload.get("schema") != BUNDLE_SCHEMA:
+        raise ValueError("unsupported packet-bundle schema")
+    raw_run_id = payload.get("run_id")
+    if not isinstance(raw_run_id, str):
+        raise ValueError("packet bundle run_id must be a string")
+    run_id = validate_run_id(raw_run_id)
+    frame_id = payload.get("frame_id")
+    if isinstance(frame_id, bool) or not isinstance(frame_id, int) or frame_id < 0:
+        raise ValueError("packet bundle frame_id must be a nonnegative integer")
+    packets_payload = payload.get("packets")
+    if not isinstance(packets_payload, list) or not packets_payload:
+        raise ValueError("packet bundle contains no packets")
+    try:
+        packets = tuple(ProtectedPacket.from_dict(item) for item in packets_payload)
+    except (TypeError, ValueError) as error:
+        raise ValueError("packet bundle contains an invalid packet") from error
+    if payload.get("packet_count") != len(packets):
+        raise ValueError("packet bundle count does not match its contents")
+    if {packet.metadata.run_id for packet in packets} != {run_id}:
+        raise ValueError("packet bundle run_id does not match packet metadata")
+    if {packet.metadata.frame_id for packet in packets} != {frame_id}:
+        raise ValueError("packet bundle frame_id does not match packet metadata")
+    return (
+        FrameBundleInfo(
+            run_id=run_id,
+            frame_id=frame_id,
+            packet_count=len(packets),
+        ),
+        packets,
+    )
 
 
 def load_frame_bundle(path: str | Path) -> tuple[ProtectedPacket, ...]:
     source = Path(path)
     try:
-        payload = json.loads(source.read_text(encoding="ascii"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        serialized = source.read_bytes()
+    except OSError as error:
         raise ValueError(f"invalid packet bundle: {source}") from error
-    if payload.get("schema") != BUNDLE_SCHEMA:
-        raise ValueError("unsupported packet-bundle schema")
-    packets_payload = payload.get("packets")
-    if not isinstance(packets_payload, list) or not packets_payload:
-        raise ValueError("packet bundle contains no packets")
-    packets = tuple(ProtectedPacket.from_dict(item) for item in packets_payload)
-    if payload.get("packet_count") != len(packets):
-        raise ValueError("packet bundle count does not match its contents")
-    if {packet.metadata.run_id for packet in packets} != {payload.get("run_id")}:
-        raise ValueError("packet bundle run_id does not match packet metadata")
-    if {packet.metadata.frame_id for packet in packets} != {payload.get("frame_id")}:
-        raise ValueError("packet bundle frame_id does not match packet metadata")
+    try:
+        _, packets = parse_frame_bundle_bytes(serialized)
+    except ValueError as error:
+        raise ValueError(f"invalid packet bundle: {source}") from error
     return packets

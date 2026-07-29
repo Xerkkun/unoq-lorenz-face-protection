@@ -21,6 +21,7 @@ from arduino.app_utils import App, Bridge
 
 from unoq_lorenz.experiment import ExperimentMode, run_experiment_mode
 from unoq_lorenz.integrity import audit_authenticated_frame
+from unoq_lorenz.laptop_sink import LaptopBundleDispatcher, load_receiver_token
 from unoq_lorenz.metrics import FrameMetrics, append_metrics
 from unoq_lorenz.nonce import NonceSequence
 from unoq_lorenz.packet import RoiProtector
@@ -116,6 +117,29 @@ def _load_boolean(environment_name: str, config_name: str, default: bool) -> boo
     )
 
 
+def _load_integer(
+    environment_name: str,
+    config_name: str,
+    default: int,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    raw = _configured_value(environment_name, config_name, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(
+            f"{environment_name} or {config_name!r} must be an integer"
+        ) from error
+    if not minimum <= value <= maximum:
+        raise RuntimeError(
+            f"{environment_name} or {config_name!r} must be within "
+            f"[{minimum}, {maximum}]"
+        )
+    return value
+
+
 run_id = _required_safe_identifier("UNOQ_RUN_ID", "run_id")
 scene = _required_safe_identifier("UNOQ_SCENE", "scene")
 condition = _load_condition()
@@ -187,8 +211,60 @@ if run_key.private_path is not None:
 
 protector = RoiProtector(run_key.key)
 nonces = NonceSequence()
+packet_root = str(
+    _configured_value(
+        "UNOQ_PACKET_DIR",
+        "packet_dir",
+        "/app/data/packets",
+    )
+)
+laptop_receiver_url = str(
+    _configured_value(
+        "UNOQ_LAPTOP_RECEIVER_URL",
+        "laptop_receiver_url",
+        "",
+    )
+).strip()
+laptop_dispatcher: LaptopBundleDispatcher | None = None
+if laptop_receiver_url:
+    if not condition.is_authenticated:
+        raise RuntimeError(
+            "laptop packet delivery is available only for authenticated M3/M4 runs"
+        )
+    laptop_token_path = Path(
+        str(
+            _configured_value(
+                "UNOQ_LAPTOP_TOKEN_FILE",
+                "laptop_receiver_token_file",
+                "/app/data/private/laptop_receiver.token",
+            )
+        )
+    )
+    private_root = Path("/app/data/private")
+    try:
+        laptop_token_path.relative_to(private_root)
+    except ValueError as error:
+        raise RuntimeError(
+            "laptop_receiver_token_file must be inside /app/data/private"
+        ) from error
+    laptop_queue_capacity = _load_integer(
+        "UNOQ_LAPTOP_QUEUE_CAPACITY",
+        "laptop_queue_capacity",
+        32,
+        minimum=1,
+        maximum=1024,
+    )
+    laptop_dispatcher = LaptopBundleDispatcher(
+        laptop_receiver_url,
+        load_receiver_token(laptop_token_path),
+        capacity=laptop_queue_capacity,
+    )
+    print(
+        "Authenticated laptop delivery is enabled; board-local packet storage "
+        "remains the authoritative fallback."
+    )
 packet_store = PacketStore(
-    os.environ.get("UNOQ_PACKET_DIR", "/app/data/packets"),
+    packet_root,
     run_id=run_id,
     condition=condition.value,
     scene=scene,
@@ -347,6 +423,11 @@ def _face_boxes(detections: dict) -> list[tuple[int, int, int, int]]:
 
 
 def _experiment_state() -> dict[str, object]:
+    laptop_delivery = (
+        laptop_dispatcher.snapshot().to_dict()
+        if laptop_dispatcher is not None
+        else None
+    )
     return {
         "run_id": run_id,
         "condition": condition.value,
@@ -357,9 +438,13 @@ def _experiment_state() -> dict[str, object]:
         "publication_frame_requires_arm_file": (
             publication_frame_arm_file is not None
         ),
+        "board_packet_directory": str(packet_store.run_dir),
+        "laptop_receiver_enabled": laptop_dispatcher is not None,
+        "laptop_delivery": laptop_delivery,
         "preview_recoverable": False,
         "payload_policy": (
-            "authenticated packets persist outside the browser"
+            "authenticated packets persist on the board and may be delivered "
+            "to an authenticated laptop receiver"
             if condition.is_authenticated
             else "no authenticated packet: insecure laboratory ablation"
         ),
@@ -436,6 +521,7 @@ def process_detections(detections: dict, *, frame: bytes | None = None) -> None:
         packet_store_ms = 0.0
         packet_bytes = 0
         payload_persisted = False
+        laptop_delivery_enqueued = False
         if condition.is_authenticated:
             if not result.packets:
                 raise RuntimeError(
@@ -446,6 +532,8 @@ def process_detections(detections: dict, *, frame: bytes | None = None) -> None:
             packet_store_ms = (time.perf_counter() - store_started) * 1_000.0
             packet_bytes = stored.serialized_bytes
             payload_persisted = True
+            if laptop_dispatcher is not None:
+                laptop_delivery_enqueued = laptop_dispatcher.submit(stored)
 
         exact_recovery_checks = 0
         exact_recovery_passes = 0
@@ -542,6 +630,7 @@ def process_detections(detections: dict, *, frame: bytes | None = None) -> None:
                 "protect_ms": round(protect_ms, 3),
                 "packet_count": len(result.packets),
                 "payload_persisted": payload_persisted,
+                "laptop_delivery_enqueued": laptop_delivery_enqueued,
             },
         )
     except Exception as error:
