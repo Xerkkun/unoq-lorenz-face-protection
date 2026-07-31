@@ -8,9 +8,17 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $SoftwareRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
-$ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $SoftwareRoot ".."))
+$StandaloneLayout = Test-Path -LiteralPath (Join-Path $SoftwareRoot "docs")
+if ($StandaloneLayout) {
+    $ProjectRoot = $SoftwareRoot
+    $DocumentRoot = Join-Path $SoftwareRoot "docs"
+}
+else {
+    $ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $SoftwareRoot ".."))
+    $DocumentRoot = $ProjectRoot
+}
 $ReleaseRoot = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot "release"))
-$PackageName = "unoq_lorenz_software_v3"
+$PackageName = "unoq_lorenz_software_v4"
 $ZipPath = Join-Path $ReleaseRoot ($PackageName + ".zip")
 $SidecarPath = $ZipPath + ".sha256"
 $FixedZipTimestamp = [DateTimeOffset]::Parse("2026-07-28T00:00:00Z")
@@ -185,7 +193,7 @@ function Get-AuditedEntries {
     )
     foreach ($document in $projectDocuments) {
         Add-PackageEntry -Entries $entries `
-            -SourcePath (Join-Path $ProjectRoot $document) `
+            -SourcePath (Join-Path $DocumentRoot $document) `
             -ArchivePath ($PackageName + "/docs/" + $document)
     }
 
@@ -247,7 +255,7 @@ function Get-AuditedEntries {
 
 function Get-PackageReadmeBytes {
     $text = @'
-# UNO Q Lorenz software evidence package v3
+# UNO Q Lorenz software evidence package v4
 
 This is a source-and-evidence package for independent review of the Arduino
 UNO Q Lorenz-assisted authenticated facial-ROI prototype.

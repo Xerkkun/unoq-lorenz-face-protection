@@ -17,6 +17,7 @@ Thumbs.db
 .env
 *.pem
 *.key
+*.token
 private/
 secrets/
 keys/

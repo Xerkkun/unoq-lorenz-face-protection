@@ -1,4 +1,4 @@
-# Guía del paquete de evidencia UNO Q v3
+# Guía del paquete de evidencia UNO Q v4
 
 El script `prepare_unoq_release.ps1` audita una lista blanca y, sólo cuando se
 solicita, construye un ZIP reproducible bajo `../release/`.
@@ -42,12 +42,13 @@ de placa y los resultados permitidos del host. También genera dentro del ZIP:
 Se excluyen por diseño claves y contratos privados, variables `.env`, datos
 crudos, rostros, imágenes y video, participantes, consentimientos, resultados
 físicos de placa, `raw/`, cachés, bytecode, entornos virtuales y artefactos de
-compilación. El archivo `unoq_lorenz_software_v3.zip.sha256` permite verificar
+compilación. El archivo `unoq_lorenz_software_v4.zip.sha256` permite verificar
 el ZIP sin abrirlo:
 
 ```powershell
-Get-FileHash ..\release\unoq_lorenz_software_v3.zip -Algorithm SHA256
-Get-Content ..\release\unoq_lorenz_software_v3.zip.sha256
+$releaseRoot = if (Test-Path .\docs) { ".\release" } else { "..\release" }
+Get-FileHash "$releaseRoot\unoq_lorenz_software_v4.zip" -Algorithm SHA256
+Get-Content "$releaseRoot\unoq_lorenz_software_v4.zip.sha256"
 ```
 
 La presencia del ZIP no convierte los tiempos del host en mediciones de Arduino

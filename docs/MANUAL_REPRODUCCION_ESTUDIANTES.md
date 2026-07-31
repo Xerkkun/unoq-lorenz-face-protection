@@ -378,6 +378,99 @@ Si se pierde la red, elija por adelantado entre búfer acotado, contrapresión o
 descarte explícito. Un búfer ilimitado puede llenar la eMMC y detener la
 aplicación.
 
+#### Procedimiento ejecutable en Windows
+
+El contenedor Linux de App Lab no puede escribir directamente en una ruta
+`C:\...`. Este repositorio incluye `scripts/laptop_packet_receiver.py`: la
+placa conserva primero el JSON atómico y un trabajador en segundo plano entrega
+los mismos bytes a la laptop. Sólo se transportan paquetes M3/M4 cifrados y
+autenticados; la imagen facial original y la clave de corrida no se envían.
+
+En PowerShell, desde la raíz del repositorio:
+
+```powershell
+$privateDir = Join-Path $env:USERPROFILE "Documents\UNOQ-Private"
+New-Item -ItemType Directory -Force $privateDir
+$tokenBytes = New-Object byte[] 32
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($tokenBytes)
+$rng.Dispose()
+[IO.File]::WriteAllText(
+  (Join-Path $privateDir "receiver.token"),
+  [Convert]::ToBase64String($tokenBytes),
+  [Text.Encoding]::ASCII
+)
+python scripts/laptop_packet_receiver.py `
+  --bind 0.0.0.0 `
+  --port 8765 `
+  --output-dir "$env:USERPROFILE\Documents\UNOQ-Captures" `
+  --token-file "$env:USERPROFILE\Documents\UNOQ-Private\receiver.token"
+```
+
+Permita el proceso únicamente en el perfil **Red privada** del firewall. En
+otra ventana compruebe `Invoke-RestMethod
+http://127.0.0.1:8765/health`. Obtenga la IPv4 de la laptop con:
+
+```powershell
+Get-NetIPConfiguration |
+  Where-Object IPv4DefaultGateway |
+  Select-Object InterfaceAlias,IPv4Address
+```
+
+Copie el mismo token, sin añadirlo al proyecto, a
+`/app/data/private/laptop_receiver.token`. En una terminal privada de App Lab
+puede utilizar:
+
+```sh
+install -d -m 700 /app/data/private
+umask 077
+read -r -s UNOQ_RECEIVER_TOKEN
+printf '%s' "$UNOQ_RECEIVER_TOKEN" > /app/data/private/laptop_receiver.token
+unset UNOQ_RECEIVER_TOKEN
+```
+
+Agregue al contrato de corrida:
+
+```json
+{
+  "run_id": "20260728_student01",
+  "scene": "stationary",
+  "condition": "M4_lorenz_aead",
+  "bbox_margin_fraction": 0.10,
+  "inline_integrity_audit": false,
+  "publication_frame_enabled": false,
+  "laptop_receiver_url": "http://192.168.1.50:8765/v1/bundles",
+  "laptop_receiver_token_file": "/app/data/private/laptop_receiver.token",
+  "laptop_queue_capacity": 32
+}
+```
+
+Sustituya `192.168.1.50` por la IPv4 real. Arranque en este orden: receptor de
+la laptop, aplicación de App Lab y emparejamiento del celular. Los archivos
+llegan a
+`Documents\UNOQ-Captures\<run_id>\frame_##########.json`. El receptor verifica
+HMAC-SHA-256, ventana temporal, SHA-256, esquema, `run_id`, `frame_id` y conteo
+de paquetes; después publica el archivo de forma atómica. Un reintento idéntico
+no duplica datos y un contenido diferente para el mismo fotograma produce
+conflicto.
+
+En la placa permanecen:
+
+| Evidencia | Ruta predeterminada |
+|---|---|
+| paquetes recuperables | `/app/data/packets/<run_id>/` |
+| contrato de corrida | `/app/data/packets/<run_id>/run_contract.json` |
+| métricas físicas | `/app/data/board/raw/<run_id>_<condición>.csv` |
+| vista autorizada del artículo | `/app/data/board/publication/` |
+| clave y configuración privadas | `/app/data/private/` |
+
+La cola de red es acotada y no bloquea el callback. Si se llena o se agotan los
+reintentos, el contador `laptop_delivery` lo informa en la WebUI y la copia
+local sigue siendo la evidencia autoritativa. No elimine esa copia hasta
+verificar el inventario recibido. HTTP con HMAC autentica pero no oculta
+metadatos ni patrones de tráfico; use sólo una LAN privada aislada, o cambie a
+HTTPS/VPN para redes no confiables.
+
 ### 12.3 Política C: servicio remoto o nube
 
 Flujo:
